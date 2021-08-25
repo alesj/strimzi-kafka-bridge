@@ -106,6 +106,9 @@
 		<jaeger.version>1.6.0</jaeger.version>
 		<opentracing.version>0.33.0</opentracing.version>
 		<opentracing-kafka-client.version>0.1.15</opentracing-kafka-client.version>
+		<opentelemetry.version>1.7.0-alpha</opentelemetry.version>
+		<opentelemetry-stable.version>1.7.0</opentelemetry-stable.version>
+		<grpc.version>1.41.0</grpc.version>
 		<micrometer.version>1.3.9</micrometer.version>
 		<jmx-prometheus-collector.version>0.12.0</jmx-prometheus-collector.version>
 		<commons-cli.version>1.4</commons-cli.version>
@@ -204,6 +207,42 @@
 			<version>${opentracing-kafka-client.version}</version>
 		</dependency>
 		<dependency>
+			<groupId>io.opentelemetry</groupId>
+			<artifactId>opentelemetry-sdk-extension-autoconfigure</artifactId>
+			<version>${opentelemetry.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>io.opentelemetry</groupId>
+			<artifactId>opentelemetry-semconv</artifactId>
+			<version>${opentelemetry.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>io.opentelemetry</groupId>
+			<artifactId>opentelemetry-sdk-trace</artifactId>
+			<version>${opentelemetry-stable.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>io.opentelemetry.instrumentation</groupId>
+			<artifactId>opentelemetry-kafka-clients-2.6</artifactId>
+			<version>${opentelemetry.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>io.opentelemetry.instrumentation</groupId>
+			<artifactId>opentelemetry-kafka-clients-common</artifactId>
+			<version>${opentelemetry.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>io.opentelemetry</groupId>
+			<artifactId>opentelemetry-exporter-jaeger</artifactId>
+			<version>${opentelemetry-stable.version}</version>
+		</dependency>
+		<!-- Use gRPC as the transport -->
+		<dependency>
+			<groupId>io.grpc</groupId>
+			<artifactId>grpc-netty-shaded</artifactId>
+			<version>${grpc.version}</version>
+		</dependency>
+		<dependency>
 			<groupId>io.micrometer</groupId>
 			<artifactId>micrometer-registry-prometheus</artifactId>
 			<version>${micrometer.version}</version>
@@ -292,6 +331,12 @@
 		<dependency>
 			<groupId>io.vertx</groupId>
 			<artifactId>vertx-junit5</artifactId>
+			<version>${vertx.version}</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>io.vertx</groupId>
+			<artifactId>vertx-opentelemetry</artifactId>
 			<version>${vertx.version}</version>
 			<scope>test</scope>
 		</dependency>

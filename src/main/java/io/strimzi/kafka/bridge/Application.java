@@ -5,13 +5,11 @@
 
 package io.strimzi.kafka.bridge;
 
-import io.jaegertracing.Configuration;
 import io.micrometer.core.instrument.MeterRegistry;
-import io.opentracing.Tracer;
-import io.opentracing.util.GlobalTracer;
 import io.strimzi.kafka.bridge.amqp.AmqpBridge;
 import io.strimzi.kafka.bridge.config.BridgeConfig;
 import io.strimzi.kafka.bridge.http.HttpBridge;
+import io.strimzi.kafka.bridge.tracing.TracingUtil;
 import io.vertx.config.ConfigRetriever;
 import io.vertx.config.ConfigRetrieverOptions;
 import io.vertx.config.ConfigStoreOptions;
@@ -62,107 +60,95 @@ public class Application {
     private static final int DEFAULT_EMBEDDED_HTTP_SERVER_PORT = 8080;
 
     @SuppressWarnings({"checkstyle:NPathComplexity"})
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         log.info("Strimzi Kafka Bridge {} is starting", Application.class.getPackage().getImplementationVersion());
-        try {
-            VertxOptions vertxOptions = new VertxOptions();
-            JmxCollectorRegistry jmxCollectorRegistry = null;
-            if (Boolean.valueOf(System.getenv(KAFKA_BRIDGE_METRICS_ENABLED))) {
-                log.info("Metrics enabled and exposed on the /metrics endpoint");
-                // setup Micrometer metrics options
-                vertxOptions.setMetricsOptions(metricsOptions());
-                jmxCollectorRegistry = getJmxCollectorRegistry();
-            }
-            Vertx vertx = Vertx.vertx(vertxOptions);
-            // MeterRegistry default instance is just null if metrics are not enabled in the VertxOptions instance
-            MeterRegistry meterRegistry = BackendRegistries.getDefaultNow();
-            MetricsReporter metricsReporter = new MetricsReporter(jmxCollectorRegistry, meterRegistry);
+        VertxOptions vertxOptions = new VertxOptions();
+        JmxCollectorRegistry jmxCollectorRegistry = null;
+        if (Boolean.parseBoolean(System.getenv(KAFKA_BRIDGE_METRICS_ENABLED))) {
+            log.info("Metrics enabled and exposed on the /metrics endpoint");
+            // setup Micrometer metrics options
+            vertxOptions.setMetricsOptions(metricsOptions());
+            jmxCollectorRegistry = getJmxCollectorRegistry();
+        }
+        Vertx vertx = Vertx.vertx(vertxOptions);
+        // MeterRegistry default instance is just null if metrics are not enabled in the VertxOptions instance
+        MeterRegistry meterRegistry = BackendRegistries.getDefaultNow();
+        MetricsReporter metricsReporter = new MetricsReporter(jmxCollectorRegistry, meterRegistry);
 
 
-            CommandLine commandLine = new DefaultParser().parse(generateOptions(), args);
+        CommandLine commandLine = new DefaultParser().parse(generateOptions(), args);
 
-            ConfigStoreOptions fileStore = new ConfigStoreOptions()
-                    .setType("file")
-                    .setFormat("properties")
-                    .setConfig(new JsonObject().put("path", absoluteFilePath(commandLine.getOptionValue("config-file"))).put("raw-data", true));
+        ConfigStoreOptions fileStore = new ConfigStoreOptions()
+            .setType("file")
+            .setFormat("properties")
+            .setConfig(new JsonObject().put("path", absoluteFilePath(commandLine.getOptionValue("config-file"))).put("raw-data", true));
 
-            ConfigStoreOptions envStore = new ConfigStoreOptions()
-                    .setType("env")
-                    .setConfig(new JsonObject().put("raw-data", true));
+        ConfigStoreOptions envStore = new ConfigStoreOptions()
+            .setType("env")
+            .setConfig(new JsonObject().put("raw-data", true));
 
-            ConfigRetrieverOptions options = new ConfigRetrieverOptions()
-                    .addStore(fileStore)
-                    .addStore(envStore);
+        ConfigRetrieverOptions options = new ConfigRetrieverOptions()
+            .addStore(fileStore)
+            .addStore(envStore);
 
-            ConfigRetriever retriever = ConfigRetriever.create(vertx, options);
-            retriever.getConfig(ar -> {
+        ConfigRetriever retriever = ConfigRetriever.create(vertx, options);
+        retriever.getConfig(ar -> {
 
-                if (ar.succeeded()) {
-                    Map<String, Object> config = ar.result().getMap();
-                    BridgeConfig bridgeConfig = BridgeConfig.fromMap(config);
+            if (ar.succeeded()) {
+                Map<String, Object> config = ar.result().getMap();
+                BridgeConfig bridgeConfig = BridgeConfig.fromMap(config);
 
-                    int embeddedHttpServerPort = Integer.parseInt(config.getOrDefault(EMBEDDED_HTTP_SERVER_PORT, DEFAULT_EMBEDDED_HTTP_SERVER_PORT).toString());
+                int embeddedHttpServerPort = Integer.parseInt(config.getOrDefault(EMBEDDED_HTTP_SERVER_PORT, DEFAULT_EMBEDDED_HTTP_SERVER_PORT).toString());
 
-                    if (bridgeConfig.getAmqpConfig().isEnabled() && bridgeConfig.getAmqpConfig().getPort() == embeddedHttpServerPort) {
-                        log.error("Embedded HTTP server port {} conflicts with configured AMQP port", embeddedHttpServerPort);
-                        System.exit(1);
-                    }
+                if (bridgeConfig.getAmqpConfig().isEnabled() && bridgeConfig.getAmqpConfig().getPort() == embeddedHttpServerPort) {
+                    log.error("Embedded HTTP server port {} conflicts with configured AMQP port", embeddedHttpServerPort);
+                    System.exit(1);
+                }
 
-                    List<Future> futures = new ArrayList<>();
-                    futures.add(deployAmqpBridge(vertx, bridgeConfig, metricsReporter));
-                    futures.add(deployHttpBridge(vertx, bridgeConfig, metricsReporter));
+                List<Future> futures = new ArrayList<>();
+                futures.add(deployAmqpBridge(vertx, bridgeConfig, metricsReporter));
+                futures.add(deployHttpBridge(vertx, bridgeConfig, metricsReporter));
 
-                    CompositeFuture.join(futures).onComplete(done -> {
-                        if (done.succeeded()) {
-                            HealthChecker healthChecker = new HealthChecker();
-                            for (int i = 0; i < futures.size(); i++) {
-                                if (done.result().succeeded(i) && done.result().resultAt(i) != null) {
-                                    healthChecker.addHealthCheckable(done.result().resultAt(i));
-                                    // when HTTP protocol is enabled, it handles healthy/ready endpoints as well,
-                                    // so it needs the checker for asking other protocols bridges status
-                                    if (done.result().resultAt(i) instanceof HttpBridge) {
-                                        ((HttpBridge) done.result().resultAt(i)).setHealthChecker(healthChecker);
-                                    }
-                                }
-                            }
-
-                            // when HTTP protocol is enabled, it handles healthy/ready/metrics endpoints as well,
-                            // so no need for a standalone embedded HTTP server
-                            if (!bridgeConfig.getHttpConfig().isEnabled()) {
-                                EmbeddedHttpServer embeddedHttpServer =
-                                        new EmbeddedHttpServer(vertx, healthChecker, metricsReporter, embeddedHttpServerPort);
-                                embeddedHttpServer.start();
-                            }
-
-                            // register OpenTracing Jaeger tracer
-                            if ("jaeger".equals(bridgeConfig.getTracing())) {
-                                if (config.get(Configuration.JAEGER_SERVICE_NAME) != null) {
-                                    Tracer tracer = Configuration.fromEnv().getTracer();
-                                    GlobalTracer.registerIfAbsent(tracer);
-                                } else {
-                                    log.error("Jaeger tracing cannot be initialized because {} environment variable is not defined", Configuration.JAEGER_SERVICE_NAME);
+                CompositeFuture.join(futures).onComplete(done -> {
+                    if (done.succeeded()) {
+                        HealthChecker healthChecker = new HealthChecker();
+                        for (int i = 0; i < futures.size(); i++) {
+                            if (done.result().succeeded(i) && done.result().resultAt(i) != null) {
+                                healthChecker.addHealthCheckable(done.result().resultAt(i));
+                                // when HTTP protocol is enabled, it handles healthy/ready endpoints as well,
+                                // so it needs the checker for asking other protocols bridges status
+                                if (done.result().resultAt(i) instanceof HttpBridge) {
+                                    ((HttpBridge) done.result().resultAt(i)).setHealthChecker(healthChecker);
                                 }
                             }
                         }
-                    });
-                } else {
-                    log.error("Error starting the bridge", ar.cause());
-                    System.exit(1);
-                }
-            });
-        } catch (Exception ex) {
-            log.error("Error starting the bridge", ex);
-            System.exit(1);
-        }
+
+                        // register Jaeger tracer - if set, etc
+                        TracingUtil.initialize(bridgeConfig);
+
+                        // when HTTP protocol is enabled, it handles healthy/ready/metrics endpoints as well,
+                        // so no need for a standalone embedded HTTP server
+                        if (!bridgeConfig.getHttpConfig().isEnabled()) {
+                            EmbeddedHttpServer embeddedHttpServer =
+                                new EmbeddedHttpServer(vertx, healthChecker, metricsReporter, embeddedHttpServerPort);
+                            embeddedHttpServer.start();
+                        }
+                    }
+                });
+            } else {
+                log.error("Error starting the bridge", ar.cause());
+                System.exit(1);
+            }
+        });
     }
 
     /**
      * Set up the Vert.x metrics options
-     * 
+     *
      * @return instance of the MicrometerMetricsOptions on Vert.x
      */
     private static MicrometerMetricsOptions metricsOptions() {
-        Set<String> set = new HashSet();
+        Set<String> set = new HashSet<>();
         set.add(MetricsDomain.NAMED_POOLS.name());
         set.add(MetricsDomain.VERTICLES.name());
         return new MicrometerMetricsOptions()
@@ -218,7 +204,7 @@ public class Application {
 
         if (bridgeConfig.getHttpConfig().isEnabled()) {
             HttpBridge httpBridge = new HttpBridge(bridgeConfig, metricsReporter);
-            
+
             vertx.deployVerticle(httpBridge, done -> {
                 if (done.succeeded()) {
                     log.info("HTTP verticle instance deployed [{}]", done.result());
