@@ -38,12 +38,12 @@ import io.vertx.core.json.DecodeException;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;
-import io.vertx.kafka.client.common.TopicPartition;
-import io.vertx.kafka.client.consumer.KafkaConsumerRecord;
-import io.vertx.kafka.client.consumer.OffsetAndMetadata;
-import io.vertx.kafka.client.producer.KafkaHeader;
 
 import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.OffsetAndMetadata;
+import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.serialization.Deserializer;
 
 import java.util.ArrayList;
@@ -277,12 +277,10 @@ public class HttpSinkBridgeEndpoint<K, V> extends SinkBridgeEndpoint<K, V> {
                     Tracer tracer = GlobalTracer.get();
 
                     SpanBuilder spanBuilder = tracer.buildSpan(HttpOpenApiOperations.POLL.toString());
-                    for (int i = 0; i < records.result().size(); i++) {
-                        KafkaConsumerRecord<K, V> record = records.result().recordAt(i);
-
+                    for (ConsumerRecord<K, V> record : records.result()) {
                         Map<String, String> headers = new HashMap<>();
-                        for (KafkaHeader header : record.headers()) {
-                            headers.put(header.key(), header.value().toString());
+                        for (Header header : record.headers()) {
+                            headers.put(header.key(), new String(header.value()));
                         }
 
                         SpanContext parentSpan = tracer.extract(Format.Builtin.HTTP_HEADERS, new TextMapAdapter(headers));
@@ -434,13 +432,13 @@ public class HttpSinkBridgeEndpoint<K, V> extends SinkBridgeEndpoint<K, V> {
 
                 HashMap<String, JsonArray> partitions = new HashMap<>();
                 for (TopicPartition topicPartition: listSubscriptionsResult.result()) {
-                    if (!topicsArray.contains(topicPartition.getTopic())) {
-                        topicsArray.add(topicPartition.getTopic());
+                    if (!topicsArray.contains(topicPartition.topic())) {
+                        topicsArray.add(topicPartition.topic());
                     }
-                    if (!partitions.containsKey(topicPartition.getTopic())) {
-                        partitions.put(topicPartition.getTopic(), new JsonArray());
+                    if (!partitions.containsKey(topicPartition.topic())) {
+                        partitions.put(topicPartition.topic(), new JsonArray());
                     }
-                    partitions.put(topicPartition.getTopic(), partitions.get(topicPartition.getTopic()).add(topicPartition.getPartition()));
+                    partitions.put(topicPartition.topic(), partitions.get(topicPartition.topic()).add(topicPartition.partition()));
                 }
                 for (Map.Entry<String, JsonArray> part: partitions.entrySet()) {
                     JsonObject topic = new JsonObject();

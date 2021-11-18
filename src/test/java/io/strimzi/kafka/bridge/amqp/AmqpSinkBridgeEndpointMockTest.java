@@ -5,12 +5,21 @@
 
 package io.strimzi.kafka.bridge.amqp;
 
+import java.io.UncheckedIOException;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Supplier;
+
+import io.strimzi.kafka.bridge.EmbeddedFormat;
 import io.strimzi.kafka.bridge.SinkTopicSubscription;
 import io.strimzi.kafka.bridge.config.BridgeConfig;
 import io.strimzi.kafka.bridge.config.KafkaConfig;
 import io.strimzi.kafka.bridge.config.KafkaConsumerConfig;
 import io.strimzi.kafka.bridge.converter.MessageConverter;
-import io.strimzi.kafka.bridge.EmbeddedFormat;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
@@ -21,12 +30,13 @@ import io.vertx.kafka.client.consumer.KafkaConsumerRecord;
 import io.vertx.kafka.client.consumer.KafkaConsumerRecords;
 import io.vertx.kafka.client.consumer.OffsetAndMetadata;
 import io.vertx.kafka.client.consumer.impl.KafkaConsumerRecordImpl;
-import io.vertx.kafka.client.producer.KafkaProducerRecord;
 import io.vertx.proton.ProtonDelivery;
 import io.vertx.proton.ProtonQoS;
 import io.vertx.proton.ProtonSender;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.ConsumerRecords;
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.qpid.proton.amqp.Symbol;
@@ -38,15 +48,6 @@ import org.apache.qpid.proton.message.Message;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-
-import java.io.UncheckedIOException;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Supplier;
 
 import static junit.framework.TestCase.fail;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -487,22 +488,22 @@ class AmqpSinkBridgeEndpointMockTest {
         }
 
         @Override
-        public KafkaProducerRecord<K, V> toKafkaRecord(String kafkaTopic, Integer partition, M message) {
+        public ProducerRecord<K, V> toKafkaRecord(String kafkaTopic, Integer partition, M message) {
             return null;
         }
 
         @Override
-        public List<KafkaProducerRecord<K, V>> toKafkaRecords(String kafkaTopic, Integer partition, C messages) {
+        public List<ProducerRecord<K, V>> toKafkaRecords(String kafkaTopic, Integer partition, C messages) {
             return null;
         }
 
         @Override
-        public M toMessage(String address, KafkaConsumerRecord<K, V> record) {
+        public M toMessage(String address, ConsumerRecord<K, V> record) {
             return null;
         }
 
         @Override
-        public C toMessages(KafkaConsumerRecords<K, V> records) {
+        public C toMessages(ConsumerRecords<K, V> records) {
             return null;
         }
     }
@@ -530,22 +531,22 @@ class AmqpSinkBridgeEndpointMockTest {
         }
 
         @Override
-        public KafkaProducerRecord<K, V> toKafkaRecord(String kafkaTopic, Integer partition, M message) {
+        public ProducerRecord<K, V> toKafkaRecord(String kafkaTopic, Integer partition, M message) {
             return null;
         }
 
         @Override
-        public List<KafkaProducerRecord<K, V>> toKafkaRecords(String kafkaTopic, Integer partition, C messages) {
+        public List<ProducerRecord<K, V>> toKafkaRecords(String kafkaTopic, Integer partition, C messages) {
             return null;
         }
 
         @Override
-        public M toMessage(String address, KafkaConsumerRecord<K, V> record) {
+        public M toMessage(String address, ConsumerRecord<K, V> record) {
             return null;
         }
 
         @Override
-        public C toMessages(KafkaConsumerRecords<K, V> records) {
+        public C toMessages(ConsumerRecords<K, V> records) {
             return null;
         }
 

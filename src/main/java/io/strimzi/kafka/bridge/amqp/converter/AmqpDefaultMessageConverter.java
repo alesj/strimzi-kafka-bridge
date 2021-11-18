@@ -5,12 +5,18 @@
 
 package io.strimzi.kafka.bridge.amqp.converter;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import io.strimzi.kafka.bridge.amqp.AmqpBridge;
 import io.strimzi.kafka.bridge.converter.DefaultSerializer;
 import io.strimzi.kafka.bridge.converter.MessageConverter;
-import io.vertx.kafka.client.consumer.KafkaConsumerRecord;
-import io.vertx.kafka.client.consumer.KafkaConsumerRecords;
-import io.vertx.kafka.client.producer.KafkaProducerRecord;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.ConsumerRecords;
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.qpid.proton.Proton;
 import org.apache.qpid.proton.amqp.Binary;
 import org.apache.qpid.proton.amqp.Symbol;
@@ -20,12 +26,6 @@ import org.apache.qpid.proton.amqp.messaging.MessageAnnotations;
 import org.apache.qpid.proton.amqp.messaging.Section;
 import org.apache.qpid.proton.message.Message;
 
-import java.nio.charset.StandardCharsets;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 /**
  * Default implementation class for the message conversion
  * between Kafka record and AMQP message
@@ -33,7 +33,7 @@ import java.util.Map;
 public class AmqpDefaultMessageConverter implements MessageConverter<String, byte[], Message, Collection<Message>> {
 
     @Override
-    public KafkaProducerRecord<String, byte[]> toKafkaRecord(String kafkaTopic, Integer partition, Message message) {
+    public ProducerRecord<String, byte[]> toKafkaRecord(String kafkaTopic, Integer partition, Message message) {
 
         Object partitionFromMessage = null, key = null;
         byte[] value = null;
@@ -97,12 +97,11 @@ public class AmqpDefaultMessageConverter implements MessageConverter<String, byt
         }
 
         // build the record for the KafkaProducer and then send it
-        KafkaProducerRecord<String, byte[]> record = KafkaProducerRecord.create(topic, (String) key, value, (Integer) partitionFromMessage);
-        return record;
+        return new ProducerRecord<>(topic, (Integer) partitionFromMessage, (String) key, value);
     }
 
     @Override
-    public Message toMessage(String address, KafkaConsumerRecord<String, byte[]> record) {
+    public Message toMessage(String address, ConsumerRecord<String, byte[]> record) {
 
         Message message = Proton.message();
         message.setAddress(address);
@@ -123,12 +122,12 @@ public class AmqpDefaultMessageConverter implements MessageConverter<String, byt
     }
 
     @Override
-    public Collection<Message> toMessages(KafkaConsumerRecords<String, byte[]> records) {
+    public Collection<Message> toMessages(ConsumerRecords<String, byte[]> records) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public List<KafkaProducerRecord<String, byte[]>> toKafkaRecords(String kafkaTopic, Integer partition, Collection<Message> messages) {
+    public List<ProducerRecord<String, byte[]>> toKafkaRecords(String kafkaTopic, Integer partition, Collection<Message> messages) {
         throw new UnsupportedOperationException();
     }
 }

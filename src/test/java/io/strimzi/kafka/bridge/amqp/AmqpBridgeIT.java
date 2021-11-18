@@ -5,6 +5,14 @@
 
 package io.strimzi.kafka.bridge.amqp;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+
 import io.micrometer.core.instrument.MeterRegistry;
 import io.strimzi.kafka.bridge.MetricsReporter;
 import io.strimzi.kafka.bridge.amqp.converter.AmqpDefaultMessageConverter;
@@ -25,7 +33,6 @@ import io.vertx.junit5.VertxExtension;
 import io.vertx.junit5.VertxTestContext;
 import io.vertx.kafka.client.consumer.KafkaConsumer;
 import io.vertx.kafka.client.consumer.KafkaConsumerRecord;
-import io.vertx.kafka.client.consumer.impl.KafkaConsumerRecordImpl;
 import io.vertx.micrometer.backends.BackendRegistries;
 import io.vertx.proton.ProtonClient;
 import io.vertx.proton.ProtonConnection;
@@ -56,14 +63,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 
 import static io.strimzi.kafka.bridge.Constants.AMQP_BRIDGE;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -956,8 +955,7 @@ class AmqpBridgeIT extends HttpBridgeITAbstract {
         String payload = "{ \"jsonKey\":\"jsonValue\"}";
 
         //Record with a null key
-        KafkaConsumerRecord<String, byte[]> record = new KafkaConsumerRecordImpl(
-            new ConsumerRecord("mytopic", 0, 0, null, payload.getBytes()));
+        ConsumerRecord<String, byte[]> record = new ConsumerRecord("mytopic", 0, 0, null, payload.getBytes());
         Message message = (Message) messageConverter.toMessage("0", record);
         return message.getMessageAnnotations().getValue().get(Symbol.valueOf(AmqpBridge.AMQP_KEY_ANNOTATION));
     }

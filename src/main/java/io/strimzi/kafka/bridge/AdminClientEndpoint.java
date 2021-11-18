@@ -5,25 +5,25 @@
 
 package io.strimzi.kafka.bridge;
 
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
+
 import io.strimzi.kafka.bridge.config.BridgeConfig;
 import io.strimzi.kafka.bridge.config.KafkaConfig;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
-import io.vertx.kafka.admin.Config;
-import io.vertx.kafka.admin.KafkaAdminClient;
-import io.vertx.kafka.admin.ListOffsetsResultInfo;
-import io.vertx.kafka.admin.OffsetSpec;
-import io.vertx.kafka.admin.TopicDescription;
-import io.vertx.kafka.client.common.ConfigResource;
-import io.vertx.kafka.client.common.TopicPartition;
+import org.apache.kafka.clients.admin.AdminClient;
+import org.apache.kafka.clients.admin.Config;
+import org.apache.kafka.clients.admin.ListOffsetsResult;
+import org.apache.kafka.clients.admin.OffsetSpec;
+import org.apache.kafka.clients.admin.TopicDescription;
+import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.config.ConfigResource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Set;
 
 /**
  * Base class for admin client endpoint
@@ -37,7 +37,7 @@ public abstract class AdminClientEndpoint implements BridgeEndpoint {
 
     private Handler<BridgeEndpoint> closeHandler;
 
-    private KafkaAdminClient adminClient;
+    private AdminClient adminClient;
 
     /**
      * Constructor
@@ -70,7 +70,7 @@ public abstract class AdminClientEndpoint implements BridgeEndpoint {
         props.putAll(kafkaConfig.getConfig());
         props.putAll(kafkaConfig.getAdminConfig().getConfig());
 
-        this.adminClient = KafkaAdminClient.create(this.vertx, props);
+        this.adminClient = AdminClient.create(props);
     }
 
     @Override
@@ -86,7 +86,7 @@ public abstract class AdminClientEndpoint implements BridgeEndpoint {
      */
     protected void listTopics(Handler<AsyncResult<Set<String>>> handler) {
         log.info("List topics");
-        this.adminClient.listTopics(handler);
+        KafkaToVertx.handle(adminClient.listTopics().names(), handler);
     }
 
     /**
@@ -94,7 +94,7 @@ public abstract class AdminClientEndpoint implements BridgeEndpoint {
      */
     protected void describeTopics(List<String> topicNames, Handler<AsyncResult<Map<String, TopicDescription>>> handler) {
         log.info("Describe topics {}", topicNames);
-        this.adminClient.describeTopics(topicNames, handler);
+        KafkaToVertx.handle(adminClient.describeTopics(topicNames).all(), handler);
     }
 
     /**
@@ -102,15 +102,15 @@ public abstract class AdminClientEndpoint implements BridgeEndpoint {
      */
     protected void describeConfigs(List<ConfigResource> configResources, Handler<AsyncResult<Map<ConfigResource, Config>>> handler) {
         log.info("Describe configs {}", configResources);
-        this.adminClient.describeConfigs(configResources, handler);
+        KafkaToVertx.handle(adminClient.describeConfigs(configResources).all(), handler);
     }
 
     /**
      * Returns the offset spec for the given partition.
      */
-    protected void listOffsets(Map<TopicPartition, OffsetSpec> topicPartitionOffsets, Handler<AsyncResult<Map<TopicPartition, ListOffsetsResultInfo>>> handler) {
+    protected void listOffsets(Map<TopicPartition, OffsetSpec> topicPartitionOffsets, Handler<AsyncResult<Map<TopicPartition, ListOffsetsResult.ListOffsetsResultInfo>>> handler) {
         log.info("Get the offset spec for partition {}", topicPartitionOffsets);
-        this.adminClient.listOffsets(topicPartitionOffsets, handler);
+        KafkaToVertx.handle(adminClient.listOffsets(topicPartitionOffsets).all(), handler);
     }
 
     /**

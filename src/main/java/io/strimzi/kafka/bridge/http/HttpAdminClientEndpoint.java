@@ -19,25 +19,25 @@ import io.vertx.core.Vertx;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;
-import io.vertx.kafka.admin.Config;
-import io.vertx.kafka.admin.ConfigEntry;
-import io.vertx.kafka.admin.ListOffsetsResultInfo;
-import io.vertx.kafka.admin.OffsetSpec;
-import io.vertx.kafka.admin.TopicDescription;
-import io.vertx.kafka.client.common.ConfigResource;
-import io.vertx.kafka.client.common.TopicPartition;
-import io.vertx.kafka.client.common.TopicPartitionInfo;
+import org.apache.kafka.clients.admin.Config;
+import org.apache.kafka.clients.admin.ConfigEntry;
+import org.apache.kafka.clients.admin.ListOffsetsResult;
+import org.apache.kafka.clients.admin.OffsetSpec;
+import org.apache.kafka.clients.admin.TopicDescription;
+import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.TopicPartitionInfo;
+import org.apache.kafka.common.config.ConfigResource;
 import org.apache.kafka.common.errors.UnknownTopicOrPartitionException;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 public class HttpAdminClientEndpoint extends AdminClientEndpoint {
 
-    private HttpBridgeContext httpBridgeContext;
+    private final HttpBridgeContext httpBridgeContext;
 
     public HttpAdminClientEndpoint(Vertx vertx, BridgeConfig bridgeConfig, HttpBridgeContext context) {
         super(vertx, bridgeConfig);
@@ -122,31 +122,31 @@ public class HttpAdminClientEndpoint extends AdminClientEndpoint {
                 JsonObject root = new JsonObject();
                 JsonArray partitionsArray = new JsonArray();
                 root.put("name", topicName);
-                List<ConfigEntry> configEntries = configDescriptions.values().iterator().next().getEntries();
+                Collection<ConfigEntry> configEntries = configDescriptions.values().iterator().next().entries();
                 if (configEntries.size() > 0) {
                     JsonObject configs = new JsonObject();
                     configEntries.forEach(configEntry -> {
-                        configs.put(configEntry.getName(), configEntry.getValue());
+                        configs.put(configEntry.name(), configEntry.value());
                     });
                     root.put("configs", configs);
                 }
                 TopicDescription description = topicDescriptions.get(topicName);
                 if (description != null) {
-                    description.getPartitions().forEach(partitionInfo -> {
-                        int leaderId = partitionInfo.getLeader().getId();
+                    description.partitions().forEach(partitionInfo -> {
+                        int leaderId = partitionInfo.leader().id();
                         JsonObject partition = new JsonObject();
-                        partition.put("partition", partitionInfo.getPartition());
+                        partition.put("partition", partitionInfo.partition());
                         partition.put("leader", leaderId);
                         JsonArray replicasArray = new JsonArray();
-                        Set<Integer> insyncSet = new HashSet<Integer>();
-                        partitionInfo.getIsr().forEach(node -> {
-                            insyncSet.add(node.getId());
+                        Set<Integer> insyncSet = new HashSet<>();
+                        partitionInfo.isr().forEach(node -> {
+                            insyncSet.add(node.id());
                         });
-                        partitionInfo.getReplicas().forEach(node -> {
+                        partitionInfo.replicas().forEach(node -> {
                             JsonObject replica = new JsonObject();
-                            replica.put("broker", node.getId());
-                            replica.put("leader", leaderId == node.getId());
-                            replica.put("in_sync", insyncSet.contains(node.getId()));
+                            replica.put("broker", node.id());
+                            replica.put("leader", leaderId == node.id());
+                            replica.put("in_sync", insyncSet.contains(node.id()));
                             replicasArray.add(replica);
                         });
                         partition.put("replicas", replicasArray);
@@ -182,7 +182,7 @@ public class HttpAdminClientEndpoint extends AdminClientEndpoint {
                 JsonArray root = new JsonArray();
                 TopicDescription description = topicDescriptions.get(topicName);
                 if (description != null) {
-                    description.getPartitions().forEach(partitionInfo -> {
+                    description.partitions().forEach(partitionInfo -> {
                         root.add(createPartitionMetadata(partitionInfo));
                     });
                 }
@@ -222,8 +222,8 @@ public class HttpAdminClientEndpoint extends AdminClientEndpoint {
             if (describeTopicsResult.succeeded()) {
                 Map<String, TopicDescription> topicDescriptions = describeTopicsResult.result();
                 TopicDescription description = topicDescriptions.get(topicName);
-                if (description != null && partitionId < description.getPartitions().size()) {
-                    JsonObject root = createPartitionMetadata(description.getPartitions().get(partitionId));
+                if (description != null && partitionId < description.partitions().size()) {
+                    JsonObject root = createPartitionMetadata(description.partitions().get(partitionId));
                     HttpUtils.sendResponse(routingContext, HttpResponseStatus.OK.code(), BridgeContentType.KAFKA_JSON, root.toBuffer());
                 } else {
                     HttpBridgeError error = new HttpBridgeError(
@@ -265,39 +265,38 @@ public class HttpAdminClientEndpoint extends AdminClientEndpoint {
             return;
         }
         TopicPartition topicPartition = new TopicPartition(topicName, partitionId);
-        Promise<Map<TopicPartition, ListOffsetsResultInfo>> getBeginningOffsetsPromise = Promise.promise();
-        Map<TopicPartition, OffsetSpec> topicPartitionBeginOffsets = Collections.singletonMap(topicPartition, OffsetSpec.EARLIEST);
+        Promise<Map<TopicPartition, ListOffsetsResult.ListOffsetsResultInfo>> getBeginningOffsetsPromise = Promise.promise();
+        Map<TopicPartition, OffsetSpec> topicPartitionBeginOffsets = Collections.singletonMap(topicPartition, OffsetSpec.earliest());
         this.listOffsets(topicPartitionBeginOffsets, getBeginningOffsetsPromise);
-        Promise<Map<TopicPartition, ListOffsetsResultInfo>> getEndOffsetsPromise = Promise.promise();
-        Map<TopicPartition, OffsetSpec> topicPartitionEndOffsets = Collections.singletonMap(topicPartition, OffsetSpec.LATEST);
+        Promise<Map<TopicPartition, ListOffsetsResult.ListOffsetsResultInfo>> getEndOffsetsPromise = Promise.promise();
+        Map<TopicPartition, OffsetSpec> topicPartitionEndOffsets = Collections.singletonMap(topicPartition, OffsetSpec.latest());
         this.listOffsets(topicPartitionEndOffsets, getEndOffsetsPromise);
-        Future<Map<TopicPartition, ListOffsetsResultInfo>> getBeginningOffsetsFuture = getBeginningOffsetsPromise.future();
-        Future<Map<TopicPartition, ListOffsetsResultInfo>> getEndOffsetsFuture = getEndOffsetsPromise.future();
+        Future<Map<TopicPartition, ListOffsetsResult.ListOffsetsResultInfo>> getBeginningOffsetsFuture = getBeginningOffsetsPromise.future();
+        Future<Map<TopicPartition, ListOffsetsResult.ListOffsetsResultInfo>> getEndOffsetsFuture = getEndOffsetsPromise.future();
         Promise<Map<String, TopicDescription>> topicExistenceCheck = Promise.promise();
         this.describeTopics(Collections.singletonList(topicName), topicExistenceCheck);
         topicExistenceCheck.future().onComplete(t -> {
             Throwable e = null;
             if (t.cause() instanceof UnknownTopicOrPartitionException) {
                 e = t.cause();
-            } else if (t.result().get(topicName).getPartitions().size() <= partitionId) {
+            } else if (t.result().get(topicName).partitions().size() <= partitionId) {
                 e = new UnknownTopicOrPartitionException("Topic '" + topicName + "' does not have partition with id " + partitionId);
             }
             if (e != null) {
                 HttpBridgeError error = new HttpBridgeError(HttpResponseStatus.NOT_FOUND.code(), e.getMessage());
                 HttpUtils.sendResponse(routingContext, HttpResponseStatus.NOT_FOUND.code(),
                         BridgeContentType.KAFKA_JSON, error.toJson().toBuffer());
-                return;
             } else {
                 CompositeFuture.join(getBeginningOffsetsFuture, getEndOffsetsFuture).onComplete(done -> {
                     if (done.succeeded() && getBeginningOffsetsFuture.result() != null && getEndOffsetsFuture.result() != null) {
                         JsonObject root = new JsonObject();
-                        ListOffsetsResultInfo beginningOffset = getBeginningOffsetsFuture.result().get(topicPartition);
+                        ListOffsetsResult.ListOffsetsResultInfo beginningOffset = getBeginningOffsetsFuture.result().get(topicPartition);
                         if (beginningOffset != null) {
-                            root.put("beginning_offset", beginningOffset.getOffset());
+                            root.put("beginning_offset", beginningOffset.offset());
                         }
-                        ListOffsetsResultInfo endOffset = getEndOffsetsFuture.result().get(topicPartition);
+                        ListOffsetsResult.ListOffsetsResultInfo endOffset = getEndOffsetsFuture.result().get(topicPartition);
                         if (endOffset != null) {
-                            root.put("end_offset", endOffset.getOffset());
+                            root.put("end_offset", endOffset.offset());
                         }
                         HttpUtils.sendResponse(routingContext, HttpResponseStatus.OK.code(), BridgeContentType.KAFKA_JSON, root.toBuffer());
                     } else {
@@ -314,20 +313,20 @@ public class HttpAdminClientEndpoint extends AdminClientEndpoint {
     }
 
     private static JsonObject createPartitionMetadata(TopicPartitionInfo partitionInfo) {
-        int leaderId = partitionInfo.getLeader().getId();
+        int leaderId = partitionInfo.leader().id();
         JsonObject root = new JsonObject();
-        root.put("partition", partitionInfo.getPartition());
+        root.put("partition", partitionInfo.partition());
         root.put("leader", leaderId);
         JsonArray replicasArray = new JsonArray();
         Set<Integer> insyncSet = new HashSet<Integer>();
-        partitionInfo.getIsr().forEach(node -> {
-            insyncSet.add(node.getId());
+        partitionInfo.isr().forEach(node -> {
+            insyncSet.add(node.id());
         });
-        partitionInfo.getReplicas().forEach(node -> {
+        partitionInfo.replicas().forEach(node -> {
             JsonObject replica = new JsonObject();
-            replica.put("broker", node.getId());
-            replica.put("leader", leaderId == node.getId());
-            replica.put("in_sync", insyncSet.contains(node.getId()));
+            replica.put("broker", node.id());
+            replica.put("leader", leaderId == node.id());
+            replica.put("in_sync", insyncSet.contains(node.id()));
             replicasArray.add(replica);
         });
         root.put("replicas", replicasArray);
