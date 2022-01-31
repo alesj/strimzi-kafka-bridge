@@ -156,6 +156,11 @@
 			<version>${kafka.version}</version>
 		</dependency>
 		<dependency>
+			<groupId>org.apache.kafka</groupId>
+			<artifactId>kafka-streams</artifactId>
+			<version>${kafka.version}</version>
+		</dependency>
+		<dependency>
 			<groupId>com.fasterxml.jackson.core</groupId>
 			<artifactId>jackson-core</artifactId>
 			<version>${jackson-core.version}</version>
@@ -334,12 +339,12 @@
 			<version>${vertx.version}</version>
 			<scope>test</scope>
 		</dependency>
-		<dependency>
+		<!-- dependency>
 			<groupId>io.vertx</groupId>
 			<artifactId>vertx-opentelemetry</artifactId>
 			<version>${vertx.version}</version>
 			<scope>test</scope>
-		</dependency>
+		</dependency -->
 		<dependency>
 		  <groupId>org.mockito</groupId>
 		  <artifactId>mockito-core</artifactId>
