@@ -66,7 +66,7 @@ class OpenTelemetryHandle implements TracingHandle {
             }
             if (serviceName != null) {
                 System.setProperty(OPENTELEMETRY_SERVICE_NAME_PROPERTY_KEY, serviceName);
-                System.setProperty(OPENTELEMETRY_TRACES_EXPORTER_KEY, JAEGER); // it wasn't set in script
+                System.setProperty(OPENTELEMETRY_TRACES_EXPORTER_KEY, config.getTracingImpl()); // it wasn't set in script
             }
         }
         return serviceName;

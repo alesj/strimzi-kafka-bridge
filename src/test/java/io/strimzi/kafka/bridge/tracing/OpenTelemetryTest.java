@@ -18,7 +18,7 @@ import static io.strimzi.kafka.bridge.tracing.TracingConstants.OPENTELEMETRY_TRA
 public class OpenTelemetryTest extends TracingTestBase {
     @Override
     protected TracingOptions tracingOptions() {
-        System.setProperty(OPENTELEMETRY_TRACES_EXPORTER_KEY, JAEGER);
+        System.setProperty(OPENTELEMETRY_TRACES_EXPORTER_KEY, "zipkin");
         System.setProperty(OPENTELEMETRY_SERVICE_NAME_PROPERTY_KEY, "strimzi-kafka-bridge-test");
         return new OpenTelemetryOptions();
     }

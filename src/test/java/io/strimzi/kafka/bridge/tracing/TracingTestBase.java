@@ -66,7 +66,7 @@ public abstract class TracingTestBase {
     @BeforeEach
     public void setUp() {
         assumeServer(String.format("http://%s:%s", Urls.BRIDGE_HOST, Urls.BRIDGE_PORT)); // bridge
-        assumeServer("http://localhost:16686"); // jaeger
+        assumeServer("http://localhost:9411"); // zipkin
     }
 
     protected abstract TracingOptions tracingOptions();

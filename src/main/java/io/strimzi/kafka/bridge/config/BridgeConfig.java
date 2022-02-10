@@ -10,6 +10,7 @@ import java.util.stream.Collectors;
 
 import io.strimzi.kafka.bridge.amqp.AmqpConfig;
 import io.strimzi.kafka.bridge.http.HttpConfig;
+import io.strimzi.kafka.bridge.tracing.TracingConstants;
 
 /**
  * Bridge configuration properties
@@ -21,6 +22,7 @@ public class BridgeConfig extends AbstractConfig {
     public static final String BRIDGE_ID = BRIDGE_CONFIG_PREFIX + "id";
     public static final String TRACING_TYPE = BRIDGE_CONFIG_PREFIX + "tracing";
     public static final String TRACING_SERVICE_NAME_TYPE = TRACING_TYPE + ".service-name";
+    public static final String TRACING_SERVICE_IMPL = TRACING_TYPE + ".impl";
 
     private KafkaConfig kafkaConfig;
     private AmqpConfig amqpConfig;
@@ -110,6 +112,14 @@ public class BridgeConfig extends AbstractConfig {
             return null;
         } else {
             return config.get(BridgeConfig.TRACING_SERVICE_NAME_TYPE).toString();
+        }
+    }
+
+    public String getTracingImpl() {
+        if (config.get(BridgeConfig.TRACING_SERVICE_IMPL) == null) {
+            return TracingConstants.JAEGER; // make jaeger default
+        } else {
+            return config.get(BridgeConfig.TRACING_SERVICE_IMPL).toString();
         }
     }
 }

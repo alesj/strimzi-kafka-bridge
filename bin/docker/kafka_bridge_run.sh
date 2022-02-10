@@ -68,8 +68,8 @@ if [ "$FIPS_MODE" = "disabled" ]; then
     export JAVA_OPTS="${JAVA_OPTS} -Dcom.redhat.fips=false"
 fi
 
-# enabling OpenTelemetry with Jaeger
-if [ -n "$OTEL_SERVICE_NAME" ]; then
+# enabling OpenTelemetry with Jaeger by default
+if [ -n "$OTEL_SERVICE_NAME" ] && [ -z "$OTEL_TRACES_EXPORTER" ]; then
   export OTEL_TRACES_EXPORTER="jaeger"
 fi
 
