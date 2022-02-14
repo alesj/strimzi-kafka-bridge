@@ -236,6 +236,11 @@
 			<artifactId>opentelemetry-exporter-jaeger</artifactId>
 			<version>${opentelemetry-stable.version}</version>
 		</dependency>
+		<dependency>
+			<groupId>io.opentelemetry</groupId>
+			<artifactId>opentelemetry-exporter-zipkin</artifactId>
+			<version>${opentelemetry-stable.version}</version>
+		</dependency>
 		<!-- Use gRPC as the transport -->
 		<dependency>
 			<groupId>io.grpc</groupId>
