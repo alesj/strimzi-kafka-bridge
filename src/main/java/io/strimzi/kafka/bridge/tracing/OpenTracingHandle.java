@@ -10,7 +10,7 @@ import io.opentracing.References;
 import io.opentracing.Span;
 import io.opentracing.SpanContext;
 import io.opentracing.Tracer;
-import io.opentracing.contrib.kafka.TracingConsumerInterceptor;
+import io.opentracing.contrib.kafka.TracingKafkaUtils;
 import io.opentracing.contrib.kafka.TracingProducerInterceptor;
 import io.opentracing.propagation.Format;
 import io.opentracing.propagation.TextMap;
@@ -20,8 +20,8 @@ import io.opentracing.util.GlobalTracer;
 import io.strimzi.kafka.bridge.config.BridgeConfig;
 import io.vertx.core.http.HttpServerRequest;
 import io.vertx.ext.web.RoutingContext;
+import io.vertx.kafka.client.consumer.KafkaConsumerRecord;
 import io.vertx.kafka.client.producer.KafkaProducerRecord;
-import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
 
 import java.util.Iterator;
@@ -74,6 +74,20 @@ class OpenTracingHandle implements TracingHandle {
         return buildSpan(spanBuilder, routingContext);
     }
 
+    @SuppressWarnings("rawtypes")
+    @Override
+    public <K, V> void handleRecordSpan(SpanHandle<K, V> parentSpanHandle, KafkaConsumerRecord<K, V> record) {
+        Tracer tracer = GlobalTracer.get();
+        Span span = ((OTSpanHandle) parentSpanHandle).span;
+        Tracer.SpanBuilder spanBuilder = tracer.buildSpan(TracingKafkaUtils.FROM_PREFIX + record.topic())
+            .asChildOf(span).withTag(Tags.SPAN_KIND.getKey(), Tags.SPAN_KIND_CONSUMER);
+        SpanContext parentSpan = tracer.extract(Format.Builtin.TEXT_MAP, new TextMapAdapter(TracingUtil.toHeaders(record)));
+        if (parentSpan != null) {
+            spanBuilder.addReference(References.FOLLOWS_FROM, parentSpan);
+        }
+        spanBuilder.start().finish();
+    }
+
     private Tracer.SpanBuilder getSpanBuilder(RoutingContext rc, String operationName) {
         Tracer tracer = GlobalTracer.get();
         SpanContext parentSpan = tracer.extract(Format.Builtin.HTTP_HEADERS, new RequestTextMap(rc.request()));
@@ -112,15 +126,6 @@ class OpenTracingHandle implements TracingHandle {
         }
 
         @Override
-        public void addRef(Map<String, String> headers) {
-            Tracer tracer = GlobalTracer.get();
-            SpanContext parentSpan = tracer.extract(Format.Builtin.HTTP_HEADERS, new TextMapAdapter(headers));
-            if (parentSpan != null) {
-                spanBuilder.addReference(References.FOLLOWS_FROM, parentSpan);
-            }
-        }
-
-        @Override
         public SpanHandle<K, V> span(RoutingContext routingContext) {
             return buildSpan(spanBuilder, routingContext);
         }
@@ -128,7 +133,8 @@ class OpenTracingHandle implements TracingHandle {
 
     @Override
     public void kafkaConsumerConfig(Properties props) {
-        props.put(ConsumerConfig.INTERCEPTOR_CLASSES_CONFIG, TracingConsumerInterceptor.class.getName());
+        // ignore interceptor, we handle consuming + tracing
+        // props.put(ConsumerConfig.INTERCEPTOR_CLASSES_CONFIG, TracingConsumerInterceptor.class.getName());
     }
 
     @Override
@@ -162,7 +168,7 @@ class OpenTracingHandle implements TracingHandle {
         @Override
         public void inject(RoutingContext routingContext) {
             Tracer tracer = GlobalTracer.get();
-            tracer.inject(span.context(), Format.Builtin.TEXT_MAP, new TextMap() {
+            tracer.inject(span.context(), Format.Builtin.HTTP_HEADERS, new TextMap() {
                 @Override
                 public void put(String key, String value) {
                     routingContext.response().headers().add(key, value);

@@ -7,12 +7,9 @@ package io.strimzi.kafka.bridge.tracing;
 
 import io.vertx.ext.web.RoutingContext;
 
-import java.util.Map;
-
 /**
  * Simple SpanBuilder handle.
  */
 public interface SpanBuilderHandle<K, V> {
-    void addRef(Map<String, String> headers);
     SpanHandle<K, V> span(RoutingContext routingContext);
 }

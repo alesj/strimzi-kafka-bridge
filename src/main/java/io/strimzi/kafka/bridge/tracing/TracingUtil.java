@@ -7,10 +7,13 @@ package io.strimzi.kafka.bridge.tracing;
 
 import io.strimzi.kafka.bridge.config.BridgeConfig;
 import io.vertx.ext.web.RoutingContext;
+import io.vertx.kafka.client.consumer.KafkaConsumerRecord;
+import io.vertx.kafka.client.producer.KafkaHeader;
 import io.vertx.kafka.client.producer.KafkaProducerRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 
@@ -49,6 +52,14 @@ public class TracingUtil {
         }
     }
 
+    public static <K, V> Map<String, String> toHeaders(KafkaConsumerRecord<K, V> record) {
+        Map<String, String> headers = new HashMap<>();
+        for (KafkaHeader header : record.headers()) {
+            headers.put(header.key(), header.value().toString());
+        }
+        return headers;
+    }
+
     private static final class NoopTracing implements TracingHandle {
         @Override
         public String envName() {
@@ -75,6 +86,10 @@ public class TracingUtil {
         }
 
         @Override
+        public <K, V> void handleRecordSpan(SpanHandle<K, V> parentSpanHandle, KafkaConsumerRecord<K, V> record) {
+        }
+
+        @Override
         public void kafkaConsumerConfig(Properties props) {
         }
 
@@ -84,10 +99,6 @@ public class TracingUtil {
     }
 
     private static final class NoopSpanBuilderHandle<K, V> implements SpanBuilderHandle<K, V> {
-        @Override
-        public void addRef(Map<String, String> headers) {
-        }
-
         @Override
         public SpanHandle<K, V> span(RoutingContext routingContext) {
             return new NoopSpanHandle<>();

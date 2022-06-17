@@ -7,6 +7,7 @@ package io.strimzi.kafka.bridge.tracing;
 
 import io.strimzi.kafka.bridge.config.BridgeConfig;
 import io.vertx.ext.web.RoutingContext;
+import io.vertx.kafka.client.consumer.KafkaConsumerRecord;
 
 import java.util.Properties;
 
@@ -20,6 +21,8 @@ public interface TracingHandle {
 
     <K, V> SpanBuilderHandle<K, V> builder(RoutingContext routingContext, String operationName);
     <K, V> SpanHandle<K, V> span(RoutingContext routingContext, String operationName);
+
+    <K, V>  void handleRecordSpan(SpanHandle<K, V> parentSpanHandle, KafkaConsumerRecord<K, V> record);
 
     void kafkaConsumerConfig(Properties props);
     void kafkaProducerConfig(Properties props);

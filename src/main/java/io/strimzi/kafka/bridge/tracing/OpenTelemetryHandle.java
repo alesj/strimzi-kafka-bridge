@@ -18,19 +18,18 @@ import io.opentelemetry.context.Context;
 import io.opentelemetry.context.Scope;
 import io.opentelemetry.context.propagation.TextMapGetter;
 import io.opentelemetry.context.propagation.TextMapPropagator;
-import io.opentelemetry.instrumentation.kafkaclients.TracingConsumerInterceptor;
+import io.opentelemetry.instrumentation.api.instrumenter.messaging.MessageOperation;
 import io.opentelemetry.instrumentation.kafkaclients.TracingProducerInterceptor;
 import io.opentelemetry.sdk.autoconfigure.AutoConfiguredOpenTelemetrySdk;
 import io.opentelemetry.semconv.trace.attributes.SemanticAttributes;
 import io.strimzi.kafka.bridge.config.BridgeConfig;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.ext.web.RoutingContext;
+import io.vertx.kafka.client.consumer.KafkaConsumerRecord;
 import io.vertx.kafka.client.producer.KafkaHeader;
 import io.vertx.kafka.client.producer.KafkaProducerRecord;
-import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.header.Header;
 import org.apache.kafka.common.header.Headers;
 
 import java.util.Map;
@@ -112,6 +111,25 @@ class OpenTelemetryHandle implements TracingHandle {
         return new OTelSpanBuilderHandle<>(spanBuilder);
     }
 
+    @Override
+    public <K, V> void handleRecordSpan(SpanHandle<K, V> parentSpanHandle, KafkaConsumerRecord<K, V> record) {
+        String operationName = String.format("%s %s", record.topic(), MessageOperation.RECEIVE);
+        SpanBuilder spanBuilder = get().spanBuilder(operationName);
+        Context parentContext = propagator().extract(Context.current(), TracingUtil.toHeaders(record), MG);
+        if (parentContext != null) {
+            Span parentSpan = Span.fromContext(parentContext);
+            SpanContext psc = parentSpan != null ? parentSpan.getSpanContext() : null;
+            if (psc != null) {
+                spanBuilder.addLink(psc);
+            }
+        }
+        spanBuilder
+            .setSpanKind(SpanKind.CONSUMER)
+            .setParent(Context.current())
+            .startSpan()
+            .end();
+    }
+
     private static TextMapPropagator propagator() {
         return GlobalOpenTelemetry.getPropagators().getTextMapPropagator();
     }
@@ -162,18 +180,6 @@ class OpenTelemetryHandle implements TracingHandle {
         }
 
         @Override
-        public void addRef(Map<String, String> headers) {
-            Context parentContext = propagator().extract(Context.current(), headers, MG);
-            if (parentContext != null) {
-                Span parentSpan = Span.fromContext(parentContext);
-                SpanContext psc = parentSpan != null ? parentSpan.getSpanContext() : null;
-                if (psc != null) {
-                    spanBuilder.addLink(psc);
-                }
-            }
-        }
-
-        @Override
         public SpanHandle<K, V> span(RoutingContext routingContext) {
             return buildSpan(spanBuilder, routingContext);
         }
@@ -181,7 +187,8 @@ class OpenTelemetryHandle implements TracingHandle {
 
     @Override
     public void kafkaConsumerConfig(Properties props) {
-        props.put(ConsumerConfig.INTERCEPTOR_CLASSES_CONFIG, TracingConsumerInterceptor.class.getName());
+        // ignore interceptor, we handle consuming + tracing
+        //props.put(ConsumerConfig.INTERCEPTOR_CLASSES_CONFIG, TracingConsumerInterceptor.class.getName());
     }
 
     @Override
@@ -201,16 +208,16 @@ class OpenTelemetryHandle implements TracingHandle {
         @Override
         public void prepare(KafkaProducerRecord<K, V> record) {
             String uuid = UUID.randomUUID().toString();
-            spans.put(uuid, span);
-            record.addHeader(_UUID, uuid);
+            SPANS.put(uuid, span);
+            record.addHeader(X_UUID, uuid);
         }
 
         @Override
         public void clean(KafkaProducerRecord<K, V> record) {
-            Optional<KafkaHeader> oh = record.headers().stream().filter(h -> h.key().equals(_UUID)).findFirst();
+            Optional<KafkaHeader> oh = record.headers().stream().filter(h -> h.key().equals(X_UUID)).findFirst();
             oh.ifPresent(h -> {
                 String uuid = h.value().toString();
-                spans.remove(uuid);
+                SPANS.remove(uuid);
             });
         }
 
@@ -236,16 +243,16 @@ class OpenTelemetryHandle implements TracingHandle {
         }
     }
 
-    static final String _UUID = "_UUID";
-    static final Map<String, Span> spans = new ConcurrentHashMap<>();
+    static final String X_UUID = "_UUID";
+    static final Map<String, Span> SPANS = new ConcurrentHashMap<>();
 
     public static class ContextAwareTracingProducerInterceptor<K, V> extends TracingProducerInterceptor<K, V> {
         @Override
         public ProducerRecord<K, V> onSend(ProducerRecord<K, V> record) {
             Headers headers = record.headers();
-            String key = Buffer.buffer(headers.lastHeader(_UUID).value()).toString();
-            headers.remove(_UUID);
-            Span span = spans.remove(key);
+            String key = Buffer.buffer(headers.lastHeader(X_UUID).value()).toString();
+            headers.remove(X_UUID);
+            Span span = SPANS.remove(key);
             try (Scope ignored = span.makeCurrent()) {
                 return super.onSend(record);
             }
