@@ -22,7 +22,6 @@ import io.strimzi.kafka.bridge.tracing.TracingUtil;
 import io.vertx.core.CompositeFuture;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
-import io.vertx.core.MultiMap;
 import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
 import io.vertx.core.buffer.Buffer;
@@ -35,11 +34,8 @@ import org.apache.kafka.common.errors.TimeoutException;
 import org.apache.kafka.common.serialization.Serializer;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
-import java.util.Map.Entry;
 
 public class HttpSourceBridgeEndpoint<K, V> extends SourceBridgeEndpoint<K, V> {
 
@@ -89,12 +85,6 @@ public class HttpSourceBridgeEndpoint<K, V> extends SourceBridgeEndpoint<K, V> {
 
         boolean isAsync = Boolean.parseBoolean(routingContext.queryParams().get("async"));
 
-        MultiMap httpHeaders = routingContext.request().headers();
-        Map<String, String> headers = new HashMap<>();
-        for (Entry<String, String> header: httpHeaders.entries()) {
-            headers.put(header.getKey(), header.getValue());
-        }
-
         String operationName = partition == null ? HttpOpenApiOperations.SEND.toString() : HttpOpenApiOperations.SEND_TO_PARTITION.toString();
 
         TracingHandle tracing = TracingUtil.getTracing();
@@ -130,11 +120,16 @@ public class HttpSourceBridgeEndpoint<K, V> extends SourceBridgeEndpoint<K, V> {
         // start sending records asynchronously
         if (isAsync) {
             // if async is specified, return immediately once records are sent
-            this.sendAsyncRecords(records);
-            span.finish(HttpResponseStatus.NO_CONTENT.code());
+            for (KafkaProducerRecord<K, V> record : records) {
+                span.prepare(record);
+                Promise<RecordMetadata> promise = Promise.promise();
+                promise.future().onComplete(ar -> span.clean(record));
+                this.send(record, promise);
+            }
             HttpUtils.sendResponse(routingContext, HttpResponseStatus.NO_CONTENT.code(),
                     BridgeContentType.KAFKA_JSON, null);
             this.maybeClose();
+            span.finish(HttpResponseStatus.NO_CONTENT.code());
             return;
         }
 
@@ -164,10 +159,10 @@ public class HttpSourceBridgeEndpoint<K, V> extends SourceBridgeEndpoint<K, V> {
                     results.add(new HttpBridgeResult<>(new HttpBridgeError(code, msg)));
                 }
             }
-            span.finish(HttpResponseStatus.OK.code());
             HttpUtils.sendResponse(routingContext, HttpResponseStatus.OK.code(),
                     BridgeContentType.KAFKA_JSON, buildOffsets(results).toBuffer());
             this.maybeClose();
+            span.finish(HttpResponseStatus.OK.code());
         });
     }
 
@@ -195,12 +190,6 @@ public class HttpSourceBridgeEndpoint<K, V> extends SourceBridgeEndpoint<K, V> {
         }
         jsonResponse.put("offsets", offsets);
         return jsonResponse;
-    }
-
-    private void sendAsyncRecords(List<KafkaProducerRecord<K, V>> records) {
-        for (KafkaProducerRecord<K, V> record : records) {
-            this.send(record, null);
-        }
     }
 
     private int handleError(Throwable ex) {
