@@ -45,6 +45,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.stream.Collectors;
 
 /**
@@ -62,7 +64,12 @@ public class Application {
 
     @SuppressWarnings({"checkstyle:NPathComplexity"})
     public static void main(String[] args) {
+        start(args);
+    }
+
+    public static java.util.concurrent.Future<Void> start(String[] args) {
         log.info("Strimzi Kafka Bridge {} is starting", Application.class.getPackage().getImplementationVersion());
+        CompletableFuture<Void> start = new CompletableFuture<>();
         try {
             VertxOptions vertxOptions = new VertxOptions();
             JmxCollectorRegistry jmxCollectorRegistry = null;
@@ -135,6 +142,9 @@ public class Application {
                                         new EmbeddedHttpServer(vertx, healthChecker, metricsReporter, embeddedHttpServerPort);
                                 embeddedHttpServer.start();
                             }
+                            start.complete(null);
+                        } else {
+                            start.completeExceptionally(done.cause());
                         }
                     });
                 } else {
@@ -146,6 +156,7 @@ public class Application {
             log.error("Error starting the bridge", e);
             System.exit(1);
         }
+        return start;
     }
 
     /**

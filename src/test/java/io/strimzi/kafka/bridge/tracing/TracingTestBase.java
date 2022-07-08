@@ -6,9 +6,11 @@
 package io.strimzi.kafka.bridge.tracing;
 
 import io.netty.handler.codec.http.HttpResponseStatus;
+import io.strimzi.kafka.bridge.Application;
 import io.strimzi.kafka.bridge.BridgeContentType;
 import io.strimzi.kafka.bridge.http.services.ProducerService;
 import io.strimzi.kafka.bridge.utils.Urls;
+import io.strimzi.test.container.StrimziKafkaContainer;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
@@ -22,7 +24,9 @@ import io.vertx.ext.web.client.WebClient;
 import io.vertx.ext.web.client.WebClientOptions;
 import io.vertx.junit5.VertxExtension;
 import io.vertx.junit5.VertxTestContext;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -43,6 +47,11 @@ import static org.hamcrest.Matchers.is;
 public abstract class TracingTestBase {
     Logger log = LoggerFactory.getLogger(getClass());
 
+    private static final boolean EXTERNAL_ENV = Boolean.parseBoolean(System.getenv().getOrDefault("EXTERNAL_ENV", "false"));
+
+    static StrimziKafkaContainer kafkaContainer;
+    static JaegerContainer jaegerContainer;
+
     private void assumeServer(String url) {
         try {
             new URL(url).openConnection().getInputStream();
@@ -61,6 +70,26 @@ public abstract class TracingTestBase {
             });
             context.completeNow();
         };
+    }
+
+    @BeforeAll
+    public static void init() throws Exception {
+        if (!EXTERNAL_ENV) {
+            kafkaContainer = new StrimziKafkaContainer();
+            kafkaContainer.start();
+            jaegerContainer = new JaegerContainer();
+            jaegerContainer.start();
+            String[] args = new String[]{"--config-file", "config/application.properties"};
+            Application.start(args).get();
+        }
+    }
+
+    @AfterAll
+    public static void clean() {
+        if (!EXTERNAL_ENV) {
+            kafkaContainer.close();
+            jaegerContainer.close();
+        }
     }
 
     @BeforeEach
