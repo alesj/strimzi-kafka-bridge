@@ -31,8 +31,7 @@ public class BridgeExecutorServiceFactory implements ExecutorServiceFactory {
         ExecutorService original = ExecutorServiceFactory.INSTANCE.createExecutor(threadFactory, concurrency, maxConcurrency);
         return new ExecutorService() {
             private ExecutorService delegate() {
-                ExecutorService service = TracingUtil.getTracing().adapt(original);
-                return service == null ? original : service;
+                return TracingUtil.getTracing().adapt(original);
             }
 
             @Override

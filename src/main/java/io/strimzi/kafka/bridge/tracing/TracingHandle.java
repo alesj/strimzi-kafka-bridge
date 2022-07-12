@@ -38,13 +38,13 @@ public interface TracingHandle {
 
     /**
      * Adapt executor service if needed.
-     * Else return null.
+     * Else return service parameter instance.
      *
      * @param service current executor service
-     * @return adapted executor service or null
+     * @return adapted executor service or service parameter instance
      */
     default ExecutorService adapt(ExecutorService service) {
-        return null;
+        return service;
     }
 
     /**
