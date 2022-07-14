@@ -23,9 +23,13 @@ import io.opentelemetry.instrumentation.kafkaclients.TracingProducerInterceptor;
 import io.opentelemetry.sdk.autoconfigure.AutoConfiguredOpenTelemetrySdk;
 import io.opentelemetry.semconv.trace.attributes.SemanticAttributes;
 import io.strimzi.kafka.bridge.config.BridgeConfig;
+import io.vertx.core.spi.tracing.VertxTracer;
+import io.vertx.core.tracing.TracingOptions;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.kafka.client.consumer.KafkaConsumerRecord;
 import io.vertx.kafka.client.producer.KafkaProducerRecord;
+import io.vertx.tracing.opentelemetry.OpenTelemetryOptions;
+import io.vertx.tracing.opentelemetry.OpenTelemetryTracingFactory;
 import org.apache.kafka.clients.producer.ProducerConfig;
 
 import java.util.Map;
@@ -49,7 +53,8 @@ import static io.strimzi.kafka.bridge.tracing.TracingConstants.OPENTELEMETRY_TRA
 class OpenTelemetryHandle implements TracingHandle {
 
     private Tracer tracer;
-    private ExecutorService service;
+
+    private VertxTracer vertxTracer;
 
     static void setCommonAttributes(SpanBuilder builder, RoutingContext routingContext) {
         builder.setAttribute(SemanticAttributes.PEER_SERVICE, KAFKA_SERVICE);
@@ -84,14 +89,6 @@ class OpenTelemetryHandle implements TracingHandle {
     public void initialize() {
         System.setProperty("otel.metrics.exporter", "none"); // disable metrics
         AutoConfiguredOpenTelemetrySdk.initialize();
-    }
-
-    @Override
-    public synchronized ExecutorService adapt(ExecutorService provided) {
-        if (service == null) {
-            service = Context.taskWrapping(provided);
-        }
-        return service;
     }
 
     private Tracer get() {
@@ -195,7 +192,16 @@ class OpenTelemetryHandle implements TracingHandle {
 
     @Override
     public void addTracingPropsToProducerConfig(Properties props) {
-        TracingUtil.addProperty(props, ProducerConfig.INTERCEPTOR_CLASSES_CONFIG, TracingProducerInterceptor.class.getName());
+        // we use VertxTracer
+    }
+
+    @Override
+    public VertxTracer tracer() {
+        if (vertxTracer == null) {
+            OpenTelemetryOptions options = new OpenTelemetryOptions();
+            vertxTracer = options.getFactory().tracer(options);
+        }
+        return vertxTracer;
     }
 
     private static final class OTelSpanHandle<K, V> implements SpanHandle<K, V> {

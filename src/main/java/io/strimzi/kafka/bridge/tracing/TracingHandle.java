@@ -6,6 +6,8 @@
 package io.strimzi.kafka.bridge.tracing;
 
 import io.strimzi.kafka.bridge.config.BridgeConfig;
+import io.vertx.core.spi.tracing.VertxTracer;
+import io.vertx.core.tracing.TracingOptions;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.kafka.client.consumer.KafkaConsumerRecord;
 
@@ -35,17 +37,6 @@ public interface TracingHandle {
      * Initialize tracing.
      */
     void initialize();
-
-    /**
-     * Adapt executor service if needed.
-     * Else return service parameter instance.
-     *
-     * @param service current executor service
-     * @return adapted executor service or service parameter instance
-     */
-    default ExecutorService adapt(ExecutorService service) {
-        return service;
-    }
 
     /**
      * Build span builder handle.
@@ -85,4 +76,13 @@ public interface TracingHandle {
      * @param props the properties
      */
     void addTracingPropsToProducerConfig(Properties props);
+
+    /**
+     * Return a tracer instance.
+     *
+     * @return tracer instance
+     */
+    default VertxTracer tracer() {
+        return VertxTracer.NOOP;
+    }
 }

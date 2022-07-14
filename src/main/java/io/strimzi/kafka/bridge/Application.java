@@ -9,6 +9,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.strimzi.kafka.bridge.amqp.AmqpBridge;
 import io.strimzi.kafka.bridge.config.BridgeConfig;
 import io.strimzi.kafka.bridge.http.HttpBridge;
+import io.strimzi.kafka.bridge.tracing.BridgeTracingOptions;
 import io.strimzi.kafka.bridge.tracing.TracingUtil;
 import io.vertx.config.ConfigRetriever;
 import io.vertx.config.ConfigRetrieverOptions;
@@ -64,7 +65,8 @@ public class Application {
     public static void main(String[] args) {
         log.info("Strimzi Kafka Bridge {} is starting", Application.class.getPackage().getImplementationVersion());
         try {
-            VertxOptions vertxOptions = new VertxOptions();
+            VertxOptions vertxOptions = new VertxOptions()
+                .setTracingOptions(new BridgeTracingOptions());
             JmxCollectorRegistry jmxCollectorRegistry = null;
             if (Boolean.parseBoolean(System.getenv(KAFKA_BRIDGE_METRICS_ENABLED))) {
                 log.info("Metrics enabled and exposed on the /metrics endpoint");
