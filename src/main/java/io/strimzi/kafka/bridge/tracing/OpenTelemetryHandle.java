@@ -19,7 +19,6 @@ import io.opentelemetry.context.Scope;
 import io.opentelemetry.context.propagation.TextMapGetter;
 import io.opentelemetry.context.propagation.TextMapPropagator;
 import io.opentelemetry.instrumentation.api.instrumenter.messaging.MessageOperation;
-import io.opentelemetry.instrumentation.kafkaclients.TracingProducerInterceptor;
 import io.opentelemetry.sdk.autoconfigure.AutoConfiguredOpenTelemetrySdk;
 import io.opentelemetry.semconv.trace.attributes.SemanticAttributes;
 import io.strimzi.kafka.bridge.config.BridgeConfig;
@@ -29,12 +28,8 @@ import io.vertx.ext.web.RoutingContext;
 import io.vertx.kafka.client.consumer.KafkaConsumerRecord;
 import io.vertx.kafka.client.producer.KafkaProducerRecord;
 import io.vertx.tracing.opentelemetry.OpenTelemetryOptions;
-import io.vertx.tracing.opentelemetry.OpenTelemetryTracingFactory;
-import org.apache.kafka.clients.producer.ProducerConfig;
 
 import java.util.Map;
-import java.util.Properties;
-import java.util.concurrent.ExecutorService;
 
 import static io.strimzi.kafka.bridge.tracing.TracingConstants.COMPONENT;
 import static io.strimzi.kafka.bridge.tracing.TracingConstants.JAEGER;
@@ -191,14 +186,9 @@ class OpenTelemetryHandle implements TracingHandle {
     }
 
     @Override
-    public void addTracingPropsToProducerConfig(Properties props) {
-        // we use VertxTracer
-    }
-
-    @Override
     public VertxTracer tracer() {
         if (vertxTracer == null) {
-            OpenTelemetryOptions options = new OpenTelemetryOptions();
+            TracingOptions options = new OpenTelemetryOptions();
             vertxTracer = options.getFactory().tracer(options);
         }
         return vertxTracer;

@@ -7,12 +7,8 @@ package io.strimzi.kafka.bridge.tracing;
 
 import io.strimzi.kafka.bridge.config.BridgeConfig;
 import io.vertx.core.spi.tracing.VertxTracer;
-import io.vertx.core.tracing.TracingOptions;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.kafka.client.consumer.KafkaConsumerRecord;
-
-import java.util.Properties;
-import java.util.concurrent.ExecutorService;
 
 /**
  * Simple interface to abstract tracing between legacy OpenTracing and new OpenTelemetry.
@@ -69,13 +65,6 @@ public interface TracingHandle {
      * @param record Kafka consumer record
      */
     <K, V>  void handleRecordSpan(SpanHandle<K, V> parentSpanHandle, KafkaConsumerRecord<K, V> record);
-
-    /**
-     * Add producer properties, if any.
-     *
-     * @param props the properties
-     */
-    void addTracingPropsToProducerConfig(Properties props);
 
     /**
      * Return a tracer instance.

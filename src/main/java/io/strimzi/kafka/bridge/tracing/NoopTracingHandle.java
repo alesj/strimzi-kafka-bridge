@@ -10,8 +10,6 @@ import io.vertx.ext.web.RoutingContext;
 import io.vertx.kafka.client.consumer.KafkaConsumerRecord;
 import io.vertx.kafka.client.producer.KafkaProducerRecord;
 
-import java.util.Properties;
-
 final class NoopTracingHandle implements TracingHandle {
     @Override
     public String envServiceName() {
@@ -39,10 +37,6 @@ final class NoopTracingHandle implements TracingHandle {
 
     @Override
     public <K, V> void handleRecordSpan(SpanHandle<K, V> parentSpanHandle, KafkaConsumerRecord<K, V> record) {
-    }
-
-    @Override
-    public void addTracingPropsToProducerConfig(Properties props) {
     }
 
     private static final class NoopSpanBuilderHandle<K, V> implements SpanBuilderHandle<K, V> {

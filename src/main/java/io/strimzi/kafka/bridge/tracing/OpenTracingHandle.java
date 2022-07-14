@@ -11,7 +11,6 @@ import io.opentracing.Span;
 import io.opentracing.SpanContext;
 import io.opentracing.Tracer;
 import io.opentracing.contrib.kafka.TracingKafkaUtils;
-import io.opentracing.contrib.kafka.TracingProducerInterceptor;
 import io.opentracing.propagation.Format;
 import io.opentracing.propagation.TextMap;
 import io.opentracing.propagation.TextMapAdapter;
@@ -19,14 +18,15 @@ import io.opentracing.tag.Tags;
 import io.opentracing.util.GlobalTracer;
 import io.strimzi.kafka.bridge.config.BridgeConfig;
 import io.vertx.core.http.HttpServerRequest;
+import io.vertx.core.spi.tracing.VertxTracer;
+import io.vertx.core.tracing.TracingOptions;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.kafka.client.consumer.KafkaConsumerRecord;
 import io.vertx.kafka.client.producer.KafkaProducerRecord;
-import org.apache.kafka.clients.producer.ProducerConfig;
+import io.vertx.tracing.opentracing.OpenTracingOptions;
 
 import java.util.Iterator;
 import java.util.Map;
-import java.util.Properties;
 
 import static io.strimzi.kafka.bridge.tracing.TracingConstants.COMPONENT;
 import static io.strimzi.kafka.bridge.tracing.TracingConstants.KAFKA_SERVICE;
@@ -37,6 +37,8 @@ import static io.strimzi.kafka.bridge.tracing.TracingConstants.KAFKA_SERVICE;
 class OpenTracingHandle implements TracingHandle {
 
     private static Tracer tracer;
+
+    private VertxTracer vertxTracer;
 
     private static Tracer getTracer() {
         if (tracer == null) {
@@ -137,8 +139,12 @@ class OpenTracingHandle implements TracingHandle {
     }
 
     @Override
-    public void addTracingPropsToProducerConfig(Properties props) {
-        TracingUtil.addProperty(props, ProducerConfig.INTERCEPTOR_CLASSES_CONFIG, TracingProducerInterceptor.class.getName());
+    public VertxTracer tracer() {
+        if (vertxTracer == null) {
+            TracingOptions options = new OpenTracingOptions();
+            vertxTracer = options.getFactory().tracer(options);
+        }
+        return vertxTracer;
     }
 
     private static final class OTSpanHandle<K, V> implements SpanHandle<K, V> {
